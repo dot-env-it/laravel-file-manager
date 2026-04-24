@@ -1,5 +1,8 @@
 <?php
 
+use App\Models\Certification;
+use App\Models\User;
+
 return [
 
     /*
@@ -10,34 +13,32 @@ return [
     | File Manager.
     */
     'models' => [
-        // Example: User Model Configuration
-        \App\Models\User::class => [
-            'foreign_key' => '',
+        /**
+         * ModelNamespace => [
+         *      'label'        => 'Label',
+         *      'title_column' => 'Folder Name',
+         *      'icon'         => 'bi-briefcase-fill text-primary',
+         *      'flat'         => false,
+         *      'filters'      => [
+         *          'collections' => ['avatars', 'documents', 'contracts'],
+         *          'custom_properties' => [
+         *               // 'is_hidden' => false, // Only show if 'is_hidden' in custom_properties is false
+         *          ],
+         *      ],
+         * ],
+         */
+        User::class => [
             'label' => 'Staff Directory', // Label in the UI
-            'title_column' => 'name',           // Column to use for folder name
+            'title_column' => 'relation.name',           // Column to use for folder name you can use relations also.
             'icon' => 'bi-people-fill text-info',
-            'flat' => false,            // False = show list of users first
+            'flat' => false,            // False = show files group by user names, True= Show all user files combined
             'filters' => [
                 'collections' => ['avatars', 'documents', 'contracts'],
-            ],
-        ],
-
-        // Example: Model Configuration
-        /*
-         *
-        ModelNamespace => [
-            'label'        => 'Label',
-            'title_column' => 'Folder Name',
-            'icon'         => 'bi-briefcase-fill text-primary',
-            'flat'         => false,
-            'filters'      => [
-                'collections' => ['avatars', 'documents', 'contracts'],
                 'custom_properties' => [
-                    // 'is_hidden' => false, // Only show if 'is_hidden' in custom_properties is false
+                    // 'is_hidden' => false, // Only show if 'is_hidden' in custom_properties in media table is false
                 ],
             ],
         ],
-         */
     ],
 
     /*
@@ -45,34 +46,29 @@ return [
     | Contextual Grouping (Deep Vault Logic)
     |--------------------------------------------------------------------------
     | Define how related files are aggregated. This is used when you pass
-    | an 'owner' to the component.
+    | a 'model' to the component.
     */
     'relationships' => [
-
         /**
          * USER MODEL EXAMPLE
-         * When viewing a specific User, show their files AND files
-         * belonging to their related models.
-         */
-//        \App\Models\User::class => function ($user) {
-//            return [
-//                \App\Models\User::class => [$user->id],
-//                \App\Models\Certification::class => $user->certifications()->pluck('id'),
-//                \App\Models\IdentityProof::class => $user->identities()->pluck('id'),
-//                \App\Models\Payroll::class => $user->payrolls()->pluck('id'),
-//            ];
-//        },
-
-        /**
-         * MODEL EXAMPLE
+         * When viewing a specific User, show their files AND files belonging to their related models.
+         * Example:
+         * ModelNamespace => function($model) {
+         * return [
+         *      MainModelNamespace         => [$model->id],
+         *      Relation1ModelNamespace    => $model->relation1()->pluck('id'),
+         *      Relation2DModelNamespace   => $model->relation2()->pluck('id'),
+         *      Relation3ModelNamespace    => $model->relation3()->pluck('id'),
+         * ];
+         * },
          */
         /*
-        ModelNamespace => function($model) {
+         \App\Models\User::class => function ($user) {
             return [
-                MainModelNamespace         => [$model->id],
-                Relation1ModelNamespace    => $model->relation1()->pluck('id'),
-                Relation2DModelNamespace   => $model->relation2()->pluck('id'),
-                Relation3ModelNamespace    => $model->relation3()->pluck('id'),
+                \App\Models\User::class => [$user->id],
+                \App\Models\Certification::class => $user->certifications()->pluck('id'),
+                \App\Models\IdentityProof::class => $user->identities()->pluck('id'),
+                \App\Models\Payroll::class => $user->payrolls()->pluck('id'),
             ];
         },
         */
@@ -83,10 +79,10 @@ return [
     | Forms
     |--------------------------------------------------------------------------
     | The package allows to add file from file manager.
-    | Just list all the fields type and it will capture data and stores it to the table.
+    | Just list all the fields, type and it will capture data and stores it to the table.
     */
     'forms' => [
-        \App\Models\User::class => [
+        User::class => [
             'fields' => [
                 'name' => ['label' => 'Name', 'type' => 'text', 'class' => 'col-md-6'],
                 'description' => ['label' => 'Description', 'type' => 'textarea', 'class' => 'col-md-6'],
@@ -103,36 +99,36 @@ return [
             ],
         ],
 
-        \App\Models\Certification::class => [
+        Certification::class => [
             'custom_property' => [
                 'remark' => ['label' => 'Description', 'type' => 'textarea', 'col' => ' form-control col-md-6'], // to add remark in media table directly
             ],
         ],
     ],
 
+
+    /*
+     |--------------------------------------------------------------------------
+     | Custom Properties configuration
+     |--------------------------------------------------------------------------
+     | If you want to show custom properties along with file name which is stored in media table
+     */
+    'visible_custom_properties' => ['remark',],
+
+    /*
+     |--------------------------------------------------------------------------
+     | Media Download URL Configuration
+     |--------------------------------------------------------------------------
+     | The route name used to serve private media.
+     | If using a private local disk, you must define this route in your app accepting uuid / media as a parameter
+     */
+    'download_route' => 'file-manager.download',
+
     /*
     |--------------------------------------------------------------------------
-    | Media Model fallback
+    | Pagination Configuration
     |--------------------------------------------------------------------------
-    | The package automatically detects Spatie's model, but you can override
-    | it here if you use a custom class in your project.
-    */
-    'media_model' => env('FILE_MANAGER_MEDIA_MODEL', \Spatie\MediaLibrary\MediaCollections\Models\Media::class),
-
-    'forms' => [
-        // Default fields if a model isn't defined above
-        'default' => [
-            'name' => ['label' => 'Title/Name', 'type' => 'text', 'col' => 'col-md-12'],
-        ],
-    ],
-
-    /**
-     * The disk where Spatie Media is stored.
-     */
-    'disk' => env('MEDIA_DISK', 'public'),
-
-    /**
-     * Maximum number of items to show per page (if you add pagination later).
+     | Maximum number of items to show per page (if you add pagination later).
      */
     'per_page' => 25,
 
@@ -143,8 +139,8 @@ return [
     | Map your Model Classes to specific Bootstrap or FontAwesome icons.
     */
     'icons' => [
-        \App\Models\User::class => 'bi-person-badge text-info',
-        // \App\Models\Certification::class       => 'bi-clipboard-check text-warning',
-        'default' => 'bi-folder-fill text-secondary',
+        User::class => 'bi-person-badge text-info',
+        // Certification::class       => 'bi-clipboard-check text-warning',
+        'default' => 'bi-folder-fill text-primary',
     ],
 ];

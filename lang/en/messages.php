@@ -18,4 +18,7 @@ return [
     'file'     => '{0} No Files|{1} :count File|[2,*] :count Files',
     'record'     => '{0} Empty|{1} :count Record|[2,*] :count Records',
     'total'    => 'Total',
+    'models' => [
+        'model_name' => 'Model Name', // You can specify model name in snake case to show name based on language
+    ]
 ];

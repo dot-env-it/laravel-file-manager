@@ -6,6 +6,7 @@ use DotEnvIt\FileManager\Interfaces\FileManagerModelInterface;
 use Exception;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Lang;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -51,10 +52,14 @@ class FileManager extends Component
             if ($this->modelId && $this->modelType) {
                 // Start at the 'folder' view so we see the relationship categories
             }
+            $this->view = 'folder';
+            $this->selectedType = null;// $this->ownerType;
+            $this->selectedId = null;//$this->ownerId;
+        } else {
+            $this->view = 'items';
+            $this->selectedType = 'all';
+            $this->selectedId = null;
         }
-        $this->view = 'folder';
-        $this->selectedType = null;// $this->ownerType;
-        $this->selectedId = null;//$this->ownerId;
     }
 
     /**
@@ -117,6 +122,9 @@ class FileManager extends Component
 
     public function storeRecordWithFile()
     {
+        // Check if we are attaching directly to the parent model
+        $isParentModel = ($this->selectedType === $this->modelType);
+
         // 1. Dynamic Validation
         $fields = config("file-manager.forms.{$this->selectedType}")
             ?? config("file-manager.forms.default", []);
@@ -127,15 +135,10 @@ class FileManager extends Component
 
         if (isset($fields['fields'])) {
             foreach ($fields['fields'] as $key => $settings) {
-                if ($key == 'custom_property') {
-                    continue;
-                }
-
                 // You can pull 'required' or other rules directly from config if you want
                 $rules["formData.{$key}"] = $settings['rules'] ?? 'required';
             }
         }
-
 
         if (isset($fields['custom_property'])) {
             foreach ($fields['custom_property'] as $key => $settings) {
@@ -143,14 +146,29 @@ class FileManager extends Component
                 $rules["customProperty.{$key}"] = $settings['rules'] ?? 'nullable';
             }
         }
+        // Only require selectedId if it's NOT a flat category AND NOT the parent model
+        $settings = config("file-manager.models.{$this->selectedType}", []);
+        $isFlat = $settings['flat'] ?? false;
+
+        if (!$isFlat && !$isParentModel) {
+            $rules['selectedId'] = 'required';
+        }
 
         $this->validate($rules);
 
         try {
 
-
-            // 2. Create Model Instance
-            $model = $this->selectedType::find($this->selectedId);
+            if ($isParentModel) {
+                // Attach directly to the Matter record we are currently viewing
+                $model = $this->modelType::findOrFail($this->modelId);
+            } elseif ($isFlat) {
+                $model = new $this->selectedType;
+                // Link to parent
+                $foreignKey = $model->getFileManagerForeignKey();
+                $model->{$foreignKey} = $this->modelId;
+            } else {
+                $model = $this->selectedType::findOrFail($this->selectedId);
+            }
 
             if (isset($fields['fields'])) {
 
@@ -158,16 +176,14 @@ class FileManager extends Component
                     $model->{$key} = $value;
                 }
 
-                // Link to Matter/Owner
-                $foreignKey = Str::snake(class_basename($this->modelType)) . '_id';
-                $model->{$foreignKey} = $this->modelId;
                 $model->save();
             }
 
             $this->customProperty['uploaded_by'] = auth()->id();
 
             // 3. Attach File via Spatie Media Library
-            $collection = Str::camel(class_basename($this->selectedType));
+            $collection = Str::camel(class_basename($model->getFileManagerLabel() ?? $this->selectedType));
+
             $model->addMedia($this->upload->getRealPath())
                 ->usingFileName($this->upload->getClientOriginalName())
                 ->withCustomProperties($this->customProperty)
@@ -241,11 +257,24 @@ class FileManager extends Component
         $this->view = $view;
         $this->selectedType = $type;
         $this->selectedId = $id;
+        $this->isCreating = false;
+        $this->options = [];
 
         // FIX: If going back to root folder, ensure we show the Matter's categories
         if ($view === 'folder' && empty($type)) {
             // Option A: If you want root to always be the Category list
             $this->selectedType = null;
+        }
+
+        // If we go back to root, we are effectively looking for all models
+        if ($view === 'folder' && !$this->modelId) {
+            $this->view = 'items';
+            $this->selectedType = 'all';
+        }
+
+        // If we are at the root and moving forward
+        if ($view === 'model_group' || $view === 'collection_group') {
+            $this->modelId = null; // Ensure we aren't filtered by a specific Matter
         }
 
         $this->reset('search');
@@ -267,12 +296,11 @@ class FileManager extends Component
 
     protected function getItems(): Collection
     {
-        // 1. Basic Safety & Setup
-//        if (!$this->ownerId || !$this->ownerType) {
-//            return collect();
-//        }
+        if (!$this->modelId || !$this->modelType) {
+            return $this->getGlobalItems();
+        }
 
-        $mediaModelClass = config('media-library.media_model', Media::class);
+        $mediaModelClass = config('media-library.media_model');
         $owner = $this->modelType::findOrFail($this->modelId);
 
         // 2. Resolve the Relationship Map for this specific Matter
@@ -380,7 +408,11 @@ class FileManager extends Component
                 'count' => 0,
                 'is_folder' => false,
                 'size' => $m->human_readable_size,
-                'url' => $m->getUrl(),
+                'size_bytes' => $m->size,
+                'url' => $this->getFileUrl($m),
+                'custom' => collect($m->custom_properties)
+                    ->only(config('file-manager.visible_custom_properties', []))
+                    ->toArray(),
                 'extension' => $m->extension,
                 'icon' => $this->getFileIcon($m->extension),
             ]);
@@ -389,8 +421,43 @@ class FileManager extends Component
         return collect();
     }
 
-    protected function getBreadcrumbs(): array
+    protected function getBreadcrumbs_v0(): array
     {
+        // If no model is passed, we are in Global Mode
+        if (!$this->modelType || !$this->modelId) {
+            $crumbs = [
+                [
+                    'name' => __('file-manager::messages.root_name'),
+                    'view' => 'items',
+                    'type' => 'all',
+                    'active' => ($this->view === 'items'),
+                ],
+            ];
+
+            if ($this->selectedType && $this->selectedType !== 'all') {
+                $classBasename = str($this->selectedType)->classBasename()->snake();
+                $crumbs[] = [
+                    'name' => __("file-manager::messages.models.{$classBasename}") ?: $classBasename->headline(),
+                    'view' => 'model_group',
+                    'type' => $this->selectedType,
+                    'id' => null, // Ensure this exists
+                    'active' => ($this->view === 'model_group'),
+                ];
+            }
+
+            if ($this->view === 'collection_group') {
+                $crumbs[] = [
+                    'name' => str($this->selectedId)->headline(),
+                    'view' => 'collection_group', // Add this
+                    'type' => $this->selectedType, // Add this
+                    'id' => $this->selectedId,      // Add this
+                    'active' => ($this->view === 'collection_group'),
+                ];
+            }
+
+            return $crumbs;
+        }
+
         $breadcrumbs = [
             [
                 'name' => __('file-manager::messages.root_name'),
@@ -430,7 +497,109 @@ class FileManager extends Component
             ];
 
             // Set previous crumb to inactive
-//            $breadcrumbs[count($breadcrumbs)-2]['active'] = false;
+            $breadcrumbs[count($breadcrumbs) - 2]['active'] = false;
+        }
+
+        return $breadcrumbs;
+    }
+
+    protected function getBreadcrumbs(): array
+    {
+        $mediaClass = config('media-library.media_model');
+        // Calculate total size of current items
+        // Calculate size based on current view
+        $totalSizeBytes = match ($this->view) {
+            // If viewing files in a collection
+            'collection_group' => $mediaClass::where('model_type', $this->selectedType)
+                ->where('collection_name', $this->selectedId)
+                ->sum('size'),
+
+            // If viewing collections in a model group
+            'model_group' => $mediaClass::where('model_type', $this->selectedType)
+                ->sum('size'),
+
+            // If at the root (Global Library)
+            default => $mediaClass::sum('size'),
+        };
+
+        $totalSizeFormatted = $this->formatBytes($totalSizeBytes);
+
+        // --- MODE A: Global File Manager ---
+        if (!$this->modelId) {
+            $crumbs = [
+                [
+                    'name' => __('file-manager::messages.root_name') . ($this->view === 'items' && $this->selectedType === 'all' ? " ($totalSizeFormatted)" : ""),
+                    'view' => 'items',
+                    'type' => 'all',
+                    'id' => null,
+                    'active' => ($this->view === 'items' && $this->selectedType === 'all'),
+                ],
+            ];
+
+            if ($this->selectedType && $this->selectedType !== 'all') {
+                $classBasename = str($this->selectedType)->classBasename()->snake();
+                $label = __("file-manager::messages.models.{$classBasename}") ?: $classBasename->headline();
+
+                $crumbs[] = [
+                    'name' => $label . ($this->view === 'model_group' ? " ($totalSizeFormatted)" : ""),
+                    'view' => 'model_group',
+                    'type' => $this->selectedType,
+                    'id' => null,
+                    'active' => ($this->view === 'model_group'),
+                ];
+            }
+
+            if ($this->view === 'collection_group') {
+                $crumbs[] = [
+                    'name' => str($this->selectedId)->headline() . " ($totalSizeFormatted)",
+                    'view' => 'collection_group',
+                    'type' => $this->selectedType,
+                    'id' => $this->selectedId,
+                    'active' => true,
+                ];
+            }
+
+            return $crumbs;
+        }
+        $breadcrumbs = [
+            [
+                'name' => __('file-manager::messages.root_name'),
+                'view' => 'folder',
+                'type' => null,
+                'id' => null,
+                'active' => $this->view === 'folder' && !$this->selectedType,
+            ],
+        ];
+
+        // Added check: Ensure selectedType isn't empty before trying to use it
+        if ($this->view === 'items' && !empty($this->selectedType)) {
+            $className = class_basename($this->selectedType);
+            $transKey = "file-manager::messages.models." . str($className)->snake();
+
+            $displayName = Lang::has($transKey)
+                ? __($transKey)
+                : str($className)->headline()->plural();
+
+            $breadcrumbs[] = [
+                'name' => $displayName,
+                'view' => 'items',
+                'type' => $this->selectedType,
+                'active' => true,
+            ];
+            $breadcrumbs[0]['active'] = false;
+        }
+
+        if ($this->view !== 'root' && $this->selectedId) {
+            $record = $this->selectedType::find($this->selectedId);
+            $breadcrumbs[] = [
+                'name' => $record ? $record->getFileManagerLabel() : 'Record',
+                'view' => 'items',
+                'type' => $this->selectedType,
+                'id' => $this->selectedId,
+                'active' => true,
+            ];
+
+            // Set previous crumb to inactive
             $breadcrumbs[count($breadcrumbs) - 2]['active'] = false;
         }
 
@@ -462,9 +631,146 @@ class FileManager extends Component
             'name' => $m->file_name,
             'category' => str($m->collection_name)->headline(),
             'size' => $m->human_readable_size,
-            'url' => $m->getUrl(),
+            'size_bytes' => $m->size,
+            'url' => $this->getFileUrl($m),
             'extension' => $m->extension,
+            'custom' => collect($m->custom_properties)
+                ->only(config('file-manager.visible_custom_properties', []))
+                ->toArray(),
             'is_folder' => false,
         ];
+    }
+
+    protected function getGlobalItems(): \Illuminate\Support\Collection
+    {
+        $mediaClass = config('media-library.media_model');
+
+        // TIER 1: Show Models as Folders
+        if ($this->view === 'items' && $this->selectedType === 'all') {
+            return $mediaClass::query()
+                ->select('model_type')
+                ->distinct()
+                ->get()
+                ->map(function ($m) use ($mediaClass) {
+                    $classBasename = str($m->model_type)->classBasename();
+
+                    // 1. Get the localized label
+                    $label = __("file-manager::models.{$classBasename}");
+                    if ($label === "file-manager::models.{$classBasename}") {
+                        $label = $classBasename->headline();
+                    }
+
+                    // 2. Check for single collection shortcut
+                    $collections = $mediaClass::where('model_type', $m->model_type)
+                        ->distinct()
+                        ->pluck('collection_name');
+                    $collectionCount = $collections->count();
+
+                    if ($collections->count() === 1) {
+                        // Shortcut: Click takes user directly to items
+                        return [
+                            'id' => $collections->first(),
+                            'name' => $label,
+                            'is_folder' => true,
+                            'icon' => 'bi-folder-fill text-primary',
+                            'view' => 'collection_group', // Direct to Tier 3
+                            'type' => $m->model_type,
+                            'extension' => $m->extension,
+                            'count' => $collectionCount,
+                            //'icon' => 'folder-special', // Optional: unique icon for direct folders
+                        ];
+                    }
+
+                    // Standard behavior: Click takes user to Tier 2 (Collections)
+                    return [
+                        'id' => null,
+                        'name' => $label,
+                        'is_folder' => true,
+                        'view' => 'model_group',
+                        'type' => $m->model_type,
+                        'icon' => 'bi-folder-fill text-primary',
+                        'extension' => $m->extension,
+                        'count' => $collectionCount,
+                    ];
+                });
+        }
+
+        // Tier 2: Model Selected (Show Collections)
+        if ($this->view === 'model_group') {
+            return $mediaClass::where('model_type', $this->selectedType)
+                ->select('collection_name')
+                ->distinct()
+                ->get()
+                ->map(fn($m) => [
+                    'name' => str($m->collection_name)->headline(),
+                    'is_folder' => true,
+                    'view' => 'collection_group', // Next step
+                    'type' => $this->selectedType,
+                    'id' => $m->collection_name,
+                    'icon' => 'bi-folder-fill text-primary',
+                    'extension' => $m->extension,
+                    'count' => $mediaClass::where('model_type', $this->selectedType)
+                        ->where('collection_name', $m->collection_name)
+                        ->count(),
+                ]);
+        }
+
+        // Tier 3: Collection Selected (Show Files)
+        if ($this->view === 'collection_group') {
+            return $mediaClass::where('model_type', $this->selectedType)
+                ->where('collection_name', $this->selectedId)
+                ->get()
+                ->map(fn($m) => [
+                    'name' => $m->file_name,
+                    'is_folder' => false,
+                    'url' => $this->getFileUrl($m),
+                    'icon' => $this->getFileIcon($m->extension),
+                    'extension' => $m->extension,
+                    'custom' => collect($m->custom_properties)
+                        ->only(config('file-manager.visible_custom_properties', []))
+                        ->toArray(),
+                    'size' => $m->human_readable_size,
+                    'size_bytes' => $m->size,
+
+                ]);
+        }
+
+        return collect();
+    }
+
+    /**
+     * Helper to format bytes to human readable
+     */
+    private function formatBytes($bytes, $precision = 2)
+    {
+        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        $bytes = max($bytes, 0);
+        $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
+        $pow = min($pow, count($units) - 1);
+        $bytes /= pow(1024, $pow);
+
+        return round($bytes, $precision) . ' ' . $units[$pow];
+    }
+
+    protected function getFileUrl($media)
+    {
+        // 1. Get Spatie's configured disk
+        $disk = config('media-library.disk_name');
+        $driver = config("filesystems.disks.{$disk}.driver");
+
+        // 2. Handle Cloud Disks (S3, R2, etc.)
+        if (in_array($driver, ['s3', 'r2', 'gcs'])) {
+            return $media->getTemporaryUrl(now()->addMinutes(20));
+        }
+
+        // 3. Handle Private/Local Disks via Configured Route
+        $routeName = config('file-manager.download_route', 'file-manager.download');
+
+        if ($disk !== 'public' && Route::has($routeName)) {
+            return route($routeName, ['media' => $media]);
+        }
+
+        // 4. Default Fallback
+        return $media->getUrl();
     }
 }

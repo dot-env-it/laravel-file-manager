@@ -80,7 +80,7 @@
         </div>
         @if($view === 'items')
             @if($isCreating)
-                <div class="card border border-primary p-6 bg-light">
+                <div class="card card-flush shadow-sm my-6 p-6 border-bottom-2 border-gray-400 rounded-0 border-bottom-dashed">
                     <h5 class="text-primary mb-4">New {{ str(class_basename($selectedType))->headline() }}</h5>
 
                     <div class="row g-4">
@@ -90,77 +90,82 @@
                         @endphp
 
                         <div class="row g-6">
-                            {{-- Selection Area --}}
-                            <div class="col-12">
-                                <label
-                                        class="form-label fw-bold text-gray-700">Which {{ str(class_basename($selectedType))->headline() }}
-                                    does this belong to?</label>
+                            @if(!empty($options) && !$selectedId)
+                                {{-- Selection Area --}}
+                                <div class="col-12">
+                                    <label class="form-label fw-bold text-gray-700">
+                                        {{ __('Which :type does this belong to?', ['type' => __('file-manager::messages.models.' .str(class_basename($selectedType))->headline()->snake()->lower()->toString())]) }}
+                                    </label>
 
-                                <div class="d-flex flex-wrap gap-3 mt-2">
-                                    @foreach($options as $option)
-                                        <label
-                                                class="form-check form-check-custom form-check-solid form-check-sm cursor-pointer bg-white border rounded p-3 me-2">
-                                            <input class="form-check-input" type="radio"
-                                                   wire:model="selectedId" @checked(count($options) ==1)
-                                                   value="{{ $option['id'] }}" id="opt_{{ $option['id'] }}"/>
-                                            <label class="form-check-label fw-semibold text-gray-800 ms-2"
-                                                   for="opt_{{ $option['id'] }}">
-                                                {{ $option['label'] }}
+                                    <div class="d-flex flex-wrap gap-3 mt-2">
+                                        @foreach($options as $option)
+                                            <label
+                                                    class="form-check form-check-custom form-check-solid form-check-sm cursor-pointer rounded p-3 me-2">
+                                                <input class="form-check-input" type="radio"
+                                                       wire:model="selectedId" @checked(count($options) ==1)
+                                                       value="{{ $option['id'] }}" id="opt_{{ $option['id'] }}"/>
+                                                <label class="form-check-label fw-semibold text-gray-800 ms-2"
+                                                       for="opt_{{ $option['id'] }}">
+                                                    {{ $option['label'] }}
+                                                </label>
                                             </label>
-                                        </label>
-                                    @endforeach
-                                </div>
-                                @error('selectedId') <span class="text-danger fs-7">{{ $message }}</span> @enderror
-                            </div> {{-- Loop through fields from config --}}
-                            @foreach($fields as $key => $settings)
-                                @continue($key == 'custom_property')
+                                        @endforeach
+                                    </div>
+                                    @error('selectedId') <span class="text-danger fs-7">{{ $message }}</span> @enderror
+                                </div> {{-- Loop through fields from config --}}
+                            @endif
 
-                                <div class="{{ $settings['col'] ?? 'col-md-6' }} mb-3">
-                                    <label class="form-label fw-bold">{{ $settings['label'] }}</label>
+                            @if(isset($fields['fields']))
+                                @foreach($fields['fields'] as $key => $settings)
+                                    <div class="{{ $settings['class'] ?? 'col-md-12' }} mb-3">
+                                        <label class="form-label fw-bold">{{ $settings['label'] }}</label>
 
-                                    @if($settings['type'] === 'select')
-                                        {{-- SELECT TYPE --}}
-                                        <select wire:model="formData.{{ $key }}" class="form-select form-select-sm">
-                                            <option value="">-- Select {{ $settings['label'] }} --</option>
-                                            @foreach($settings['options'] as $value => $label)
-                                                {{-- Handles both ['Value'] and ['key' => 'Value'] --}}
-                                                <option value="{{ is_numeric($value) ? $label : $value }}">
-                                                    {{ $label }}
-                                                </option>
-                                            @endforeach
-                                        </select>
+                                        @if($settings['type'] === 'select')
+                                            {{-- SELECT TYPE --}}
+                                            <select wire:model="formData.{{ $key }}"
+                                                    class="form-select form-select-solid">
+                                                <option value="">-- Select {{ $settings['label'] }} --</option>
+                                                @foreach($settings['options'] as $value => $label)
+                                                    {{-- Handles both ['Value'] and ['key' => 'Value'] --}}
+                                                    <option value="{{ is_numeric($value) ? $label : $value }}">
+                                                        {{ $label }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
 
-                                    @elseif($settings['type'] === 'textarea')
-                                        {{-- TEXTAREA TYPE --}}
-                                        <textarea wire:model="formData.{{ $key }}"
-                                                  class="form-control form-control-sm"
-                                                  rows="3"
-                                                  placeholder="Enter {{ strtolower($settings['label']) }}..."></textarea>
+                                        @elseif($settings['type'] === 'textarea')
+                                            {{-- TEXTAREA TYPE --}}
+                                            <textarea wire:model="formData.{{ $key }}"
+                                                      class="form-control form-control-solid"
+                                                      rows="3"
+                                                      placeholder="Enter {{ strtolower($settings['label']) }}..."></textarea>
 
-                                    @else
-                                        {{-- DEFAULT TEXT/DATE/NUMBER TYPE --}}
-                                        <input type="{{ $settings['type'] ?? 'text' }}"
-                                               wire:model="formData.{{ $key }}"
-                                               class="form-control form-control-sm"
-                                               placeholder="Enter {{ strtolower($settings['label']) }}...">
-                                    @endif
+                                        @else
+                                            {{-- DEFAULT TEXT/DATE/NUMBER TYPE --}}
+                                            <input type="{{ $settings['type'] ?? 'text' }}"
+                                                   wire:model="formData.{{ $key }}"
+                                                   class="form-control form-control-solid"
+                                                   placeholder="Enter {{ strtolower($settings['label']) }}...">
+                                        @endif
 
-                                    @error("formData.{$key}")
-                                    <span class="text-danger fs-7">{{ $message }}</span>
-                                    @enderror
-                                </div>
-                            @endforeach
+                                        @error("formData.{$key}")
+                                        <span class="text-danger fs-7">{{ $message }}</span>
+                                        @enderror
+                                    </div>
+                                @endforeach
+                            @endif
+
                             {{-- Loop through fields from config --}}
                             @if(isset($fields['custom_property']))
                                 @foreach($fields['custom_property'] as $key => $settings)
 
-                                    <div class="{{ $settings['col'] ?? 'col-md-6' }} mb-3">
+                                    <div class="{{ $settings['class'] ?? 'col-md-12' }} mb-3">
                                         <label class="form-label fw-bold">{{ $settings['label'] }}</label>
 
                                         @if($settings['type'] === 'select')
                                             {{-- SELECT TYPE --}}
                                             <select wire:model="customProperty.{{ $key }}"
-                                                    class="form-select form-select-sm">
+                                                    class="form-select form-select-solid">
                                                 <option value="">-- Select {{ $settings['label'] }} --</option>
                                                 @foreach($settings['options'] as $value => $label)
                                                     {{-- Handles both ['Value'] and ['key' => 'Value'] --}}
@@ -173,7 +178,7 @@
                                         @elseif($settings['type'] === 'textarea')
                                             {{-- TEXTAREA TYPE --}}
                                             <textarea wire:model="customProperty.{{ $key }}"
-                                                      class="form-control form-control-sm"
+                                                      class="form-control form-control-solid"
                                                       rows="3"
                                                       placeholder="Enter {{ strtolower($settings['label']) }}..."></textarea>
 
@@ -181,8 +186,8 @@
                                             {{-- DEFAULT TEXT/DATE/NUMBER TYPE --}}
                                             <input type="{{ $settings['type'] ?? 'text' }}"
                                                    wire:model="customProperty.{{ $key }}"
-                                                   class="form-control form-control-sm"
-                                                   placeholder="Enter {{ strtolower($settings['label']) }}...">
+                                                   class="form-control form-control-solid"
+                                                   placeholder="Enter {{ strtolower($settings['label']) }}..."/>
                                         @endif
 
                                         @error("customProperty.{$key}")
@@ -193,35 +198,38 @@
                             @endif
                             {{-- APPENDED: File Upload Section (Always at the end) --}}
                             <div class="col-12 mt-6">
-                                <div class="p-5 border border-dashed rounded text-center bg-white border-primary">
-                                    <input type="file" wire:model="upload" id="finalUpload" class="d-none">
+                                <label for="finalUpload" class="col-md-12">
+                                    <div class="p-5 border border-dashed rounded text-center border-primary cursor-pointer">
+                                        <input type="file" wire:model="upload" id="finalUpload" class="d-none">
 
-                                    @if($upload)
-                                        <div class="text-success mb-2">
-                                            <i class="bi bi-file-check-fill fs-1"></i>
-                                            <span class="fw-bold">{{ $upload->getClientOriginalName() }}</span>
-                                        </div>
-                                    @else
-                                        <i class="bi bi-cloud-upload fs-1 text-muted mb-2"></i>
-                                        <p class="text-muted small">Click to select the document for this record</p>
-                                    @endif
+                                        @if($upload)
+                                            <div class="text-success mb-2">
+                                                <i class="bi bi-file-check-fill fs-1"></i>
+                                                <span class="fw-bold">{{ $upload->getClientOriginalName() }}</span>
+                                            </div>
+                                        @else
+                                            <i class="bi bi-cloud-upload fs-1 text-muted mb-2"></i>
+                                            <p class="text-muted small">Click to select the document for this record</p>
+                                        @endif
 
-                                    <label for="finalUpload"
-                                           class="btn btn-sm {{ $upload ? 'btn-success' : 'btn-outline-primary' }}">
-                                        {{ $upload ? 'Change File' : 'Choose File' }}
-                                    </label>
-                                </div>
-                                @error('upload')
-                                <div class="text-danger fs-7 mt-1">{{ $message }}</div>
-                                @enderror
+                                        <label for="finalUpload"
+                                               class="btn btn-sm {{ $upload ? 'btn-success' : 'btn-outline-primary' }}">
+                                            {{ $upload ? 'Change File' : 'Choose File' }}
+                                        </label>
+                                    </div>
+                                    @error('upload')
+                                    <div class="text-danger fs-7 mt-1">{{ $message }}</div>
+                                    @enderror
+                                </label>
                             </div>
 
                             {{-- Action Buttons --}}
                             <div class="col-12 text-end mt-4">
-                                <button wire:click="$set('isCreating', false)" class="btn btn-sm btn-link text-muted">
+                                <button wire:click="$set('isCreating', false)"
+                                        class="btn btn-sm btn-light-primary fw-bolder me-2">
                                     Cancel
                                 </button>
-                                <button wire:click="storeRecordWithFile" class="btn btn-sm btn-primary px-5">
+                                <button wire:click="storeRecordWithFile" class="btn btn-sm btn-primary fw-bolder me-2">
                                     <i class="bi bi-save"></i> Save & Upload
                                 </button>
                             </div>
@@ -253,13 +261,7 @@
 
                     <div class="card h-100 flex-center border-dashed p-8 cursor-pointer shadow-none hover-elevate-up"
                          @if($isFolder)
-                             @php
-                                 // Logic:
-                                 // 1. If we are in the 'folder' view (Categories), clicking takes us to 'items' (Records list).
-                                 // 2. If we are already in 'items' (Records list), clicking a record keeps us in 'items' but adds a selectedId.
-                                 $targetView = 'items';
-                             @endphp
-                             wire:click="navigate('{{ $targetView }}', '{{ addslashes($item['type']) }}', '{{ $item['id'] ?? '' }}')"
+                             wire:click="navigate('{{ $item['view'] ?? 'items' }}', '{{ addslashes($item['type']) }}', '{{ $item['id'] ?? '' }}')"
                             @endif>
 
                         <div class="mb-4">
@@ -297,6 +299,20 @@
                                             {{ strtoupper($item['collection']) }}
                                         </span>
                                     @endif
+                                    {{-- Display Custom Properties --}}
+                                    @if(!empty($item['custom']))
+                                        <div class="mt-2 d-flex flex-wrap justify-content-center gap-1">
+                                            @foreach($item['custom'] as $key => $value)
+                                                @if($value)
+                                                    {{-- Only show if value exists --}}
+                                                    <span class="badge badge-light-info px-2 py-1"
+                                                          title="{{ is_array($value) ? implode(', ', $value) : $value }}">
+                                                    {{ str(is_array($value) ? implode(', ', $value) : $value)->limit(25) }}
+                                                </span>
+                                                @endif
+                                            @endforeach
+                                        </div>
+                                    @endif
                                 </div>
                             @endif
                         </div>
@@ -307,8 +323,14 @@
                 <div class="col-12">
                     <div class="d-flex flex-column flex-center py-20">
                         @php
-                            // Check if the current selected type is missing the media setup
-                            $setupMissing = $selectedType && !method_exists(new $selectedType, 'media');
+                            $setupMissing = false;
+
+                                // 1. Ensure $selectedType is not empty
+                                // 2. Ensure it's not a virtual label like "model_group" or "all"
+                                // 3. Ensure the class actually exists in the system
+                                if ($selectedType && class_exists($selectedType)) {
+                                    $setupMissing = !method_exists(new $selectedType, 'media');
+                                }
                         @endphp
 
                         @if($setupMissing)
@@ -317,7 +339,8 @@
                                 <i class="bi bi-gear-wide-connected fs-5x text-warning mb-5"></i>
                                 <h3 class="text-gray-800 fw-bold">Development Notice</h3>
                                 <p class="text-gray-600 text-center mw-350px">
-                                    The model <code>{{ class_basename($selectedType) }}</code> is missing the <code>InteractsWithMedia</code> trait.
+                                    The model <code>{{ class_basename($selectedType) }}</code> is missing the <code>InteractsWithMedia</code>
+                                    trait.
                                     <br><span class="text-muted fs-8">This is only visible in local/testing.</span>
                                 </p>
                             @else
