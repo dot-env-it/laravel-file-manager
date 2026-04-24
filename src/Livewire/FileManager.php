@@ -3,11 +3,14 @@
 namespace DotEnvIt\FileManager\Livewire;
 
 use DotEnvIt\FileManager\Interfaces\FileManagerModelInterface;
+use Exception;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Lang;
 use Illuminate\Support\Str;
 use Livewire\Component;
 use Livewire\WithFileUploads;
+use Log;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 class FileManager extends Component
 {
@@ -25,15 +28,8 @@ class FileManager extends Component
 
 
     // Contextual properties (for Matter-specific views)
-    public $ownerId = null;
-    public $ownerType = null;
-
-    // Top of your FileManager.php component
-//    protected $queryString = [
-//        'view',
-//        'selectedType',
-//        'selectedId', // Ensure this is a public property
-//    ];
+    public $modelId = null;
+    public $modelType = null;
 
     public $isCreating = false;
     public $options = [];
@@ -45,17 +41,20 @@ class FileManager extends Component
     /**
      * Mount the component with optional context.
      */
-    public function mount($ownerId = null, $ownerType = null)
+    public function mount($model = null)
     {
-        $this->ownerId = $ownerId;
-        $this->ownerType = $ownerType;
 
-        if ($this->ownerId && $this->ownerType) {
-            // Start at the 'folder' view so we see the relationship categories
-            $this->view = 'folder';
-            $this->selectedType = $this->ownerType;
-            $this->selectedId = $this->ownerId;
+        if ($model) {
+            $this->modelId = $model->id;
+            $this->modelType = get_class($model);
+
+            if ($this->modelId && $this->modelType) {
+                // Start at the 'folder' view so we see the relationship categories
+            }
         }
+        $this->view = 'folder';
+        $this->selectedType = null;// $this->ownerType;
+        $this->selectedId = null;//$this->ownerId;
     }
 
     /**
@@ -99,7 +98,7 @@ class FileManager extends Component
         if ($modelInstance instanceof FileManagerModelInterface) {
             $foreignKey = $modelInstance->getFileManagerForeignKey();
 
-            $records = $this->selectedType::where($foreignKey, $this->ownerId)->get();
+            $records = $this->selectedType::where($foreignKey, $this->modelId)->get();
 
             $this->options = $records->map(fn($item) => [
                 'id' => $item->id,
@@ -160,8 +159,8 @@ class FileManager extends Component
                 }
 
                 // Link to Matter/Owner
-                $foreignKey = Str::snake(class_basename($this->ownerType)) . '_id';
-                $model->{$foreignKey} = $this->ownerId;
+                $foreignKey = Str::snake(class_basename($this->modelType)) . '_id';
+                $model->{$foreignKey} = $this->modelId;
                 $model->save();
             }
 
@@ -178,8 +177,8 @@ class FileManager extends Component
             $this->reset(['formData', 'customProperty', 'upload', 'remark', 'isCreating']);
             $this->dispatch('notify', message: 'Record created and file attached!');
 
-        } catch (\Exception $e) {
-            \Log::error($e->getMessage());
+        } catch (Exception $e) {
+            Log::error($e->getMessage());
 
             // 2. Flash to session for the Blade alert
             session()->flash('error', 'Something went wrong!! Please contact to admin.');
@@ -192,19 +191,6 @@ class FileManager extends Component
         }
     }
 
-    //
-//    public function updatedUpload()
-//    {
-//        // Optional: Validate immediately when a file is selected
-//        $this->validate([
-//            'upload' => 'max:10240', // 10MB Limit
-//        ]);
-//
-//
-//        $this->saveUpload();
-//    }
-
-
     public function saveUpload()
     {
         // 1. Validate
@@ -213,12 +199,11 @@ class FileManager extends Component
         ]);
 
         // 2. Identify the target (Let's log these to be sure)
-        $targetType = $this->selectedType ?? $this->ownerType;
-        $targetId = $this->selectedId ?? $this->ownerId;
+        $targetType = $this->selectedType ?? $this->modelType;
+        $targetId = $this->selectedId ?? $this->modelId;
 
 
         if (!$targetType || !$targetId) {
-            dd('failed');
             session()->flash('error', 'Target model or ID missing.');
             return;
         }
@@ -247,204 +232,70 @@ class FileManager extends Component
     }
 
     /**
-     * The main data fetcher.
+     * Navigation Logic.
      */
-    protected function getItems_v0(): Collection
+    // FileManager.php
+
+    public function navigate($view, $type = '', $id = '')
     {
-        $config = config('file-manager.models', []);
-        $mediaModelClass = config('media-library.media_model', \Spatie\MediaLibrary\MediaCollections\Models\Media::class);
+        $this->view = $view;
+        $this->selectedType = $type;
+        $this->selectedId = $id;
 
-        // 1. Handle Root Navigation (Global View only)
-        if ($this->view === 'root' && !$this->ownerId) {
-            return collect($config)
-                ->map(fn($settings, $class) => [
-                    'name' => $settings['label'] ?? str(class_basename($class))->plural(),
-                    'type' => $class,
-                    'is_folder' => true,
-                    'is_flat' => $settings['flat'] ?? false,
-                    'icon' => $settings['icon'] ?? 'bi-folder-fill text-primary',
-                ])
-                ->when($this->search, function ($items) {
-                    return $items->filter(fn($i) => str_contains(strtolower($i['name']), strtolower($this->search)));
-                });
+        // FIX: If going back to root folder, ensure we show the Matter's categories
+        if ($view === 'folder' && empty($type)) {
+            // Option A: If you want root to always be the Category list
+            $this->selectedType = null;
         }
 
-        // 2. Handle Folder View (Global Record List)
-        if ($this->view === 'folder' && !$this->ownerId) {
-            $settings = $config[$this->selectedType] ?? [];
-            $titleCol = $settings['title_column'] ?? 'name';
-            $searchTerm = strtolower($this->search);
-
-            return $this->selectedType::query()
-                ->whereHas('media')
-                ->when($this->search, fn($q) => $q->whereRaw("LOWER({$titleCol}) LIKE ?", ["%{$searchTerm}%"]))
-                ->get()
-                ->map(fn($record) => [
-                    'id' => $record->id,
-                    'name' => $record->{$titleCol},
-                    'type' => $this->selectedType,
-                    'is_folder' => true,
-                    'icon' => 'bi-folder-fill text-warning',
-                ]);
-        }
-
-        // 3. Handle Items View (The Actual Files)
-        $mediaQuery = $mediaModelClass::query();
-
-        if ($this->ownerId && $this->ownerType) {
-            // --- CONTEXTUAL RESOLUTION HIERARCHY ---
-            $owner = $this->ownerType::findOrFail($this->ownerId);
-            $map = [];
-
-            // A. Check Config Closure
-            $configGrouping = config("file-manager.relationships.{$this->ownerType}");
-            if (is_callable($configGrouping)) {
-                $map = $configGrouping($owner);
-            } // B. Check Model Method
-            elseif (method_exists($owner, 'getFileManagerMap')) {
-                $map = $owner->getFileManagerMap();
-            } // C. Fallback: Single Record
-            else {
-                $map = [$this->ownerType => [$this->ownerId]];
-            }
-
-            $mediaQuery->where(function ($q) use ($map) {
-                foreach ($map as $modelClass => $ids) {
-                    if (empty($ids)) continue;
-                    $idArray = $ids instanceof Collection ? $ids->toArray() : (array)$ids;
-                    $morphClass = (new $modelClass)->getMorphClass();
-
-                    $q->orWhere(function ($sub) use ($morphClass, $idArray) {
-                        $sub->where('model_type', $morphClass)->whereIn('model_id', $idArray);
-                    });
-                }
-            });
-        } else {
-            // Global Item View for a single selected record
-            $modelInstance = new $this->selectedType;
-            $mediaQuery->where('model_type', $modelInstance->getMorphClass())
-                ->where('model_id', $this->selectedId);
-        }
-
-        // Apply Collection Filters (Case Insensitive Index Friendly)
-        $settings = $config[$this->selectedType] ?? [];
-        if (!empty($settings['filters']['collections'])) {
-            $existingInDb = $mediaModelClass::distinct()->pluck('collection_name');
-            $configColls = array_map('strtolower', (array)$settings['filters']['collections']);
-            $matched = $existingInDb->filter(fn($name) => in_array(strtolower($name), $configColls));
-            $mediaQuery->whereIn('collection_name', $matched->toArray());
-        }
-
-        // Apply Case-Insensitive Search
-        $mediaQuery->when($this->search, function ($q) {
-            $term = strtolower($this->search);
-            $q->where(function ($sub) use ($term) {
-                $sub->whereRaw('LOWER(file_name) LIKE ?', ["%{$term}%"])
-                    ->orWhereRaw('LOWER(name) LIKE ?', ["%{$term}%"]);
-            });
-        });
-
-        return $mediaQuery->get()->map(fn($m) => $this->mapMediaItem($m));
+        $this->reset('search');
     }
 
-    protected function getItems_v1(): \Illuminate\Support\Collection
+    /**
+     * Render the component.
+     */
+    public function render()
     {
-        $mediaModelClass = config('media-library.media_model', \Spatie\MediaLibrary\MediaCollections\Models\Media::class);
-        $mediaQuery = $mediaModelClass::query();
+        $items = $this->getItems();
 
-        if ($this->ownerId && $this->ownerType) {
-            $owner = $this->ownerType::findOrFail($this->ownerId);
-            $map = [];
-
-            // 1. Resolve Map
-            $configRelationships = config("file-manager.relationships.{$this->ownerType}");
-            if (is_callable($configRelationships)) {
-                $map = $configRelationships($owner);
-            } elseif (method_exists($owner, 'getFileManagerMap')) {
-                $map = $owner->getFileManagerMap();
-            } else {
-                $map = [$this->ownerType => [$this->ownerId]];
-            }
-
-            // 2. Build Query with MorphMap awareness
-            $mediaQuery->where(function ($q) use ($map) {
-                foreach ($map as $modelClass => $ids) {
-                    // Ensure $ids is an array and not empty
-                    $idArray = collect($ids)->filter()->toArray();
-                    if (empty($idArray)) continue;
-
-                    // CRITICAL: Get the actual string stored in the DB (Handles MorphMaps)
-                    $modelInstance = new $modelClass;
-                    $morphAlias = method_exists($modelInstance, 'getMorphClass')
-                        ? $modelInstance->getMorphClass()
-                        : $modelClass;
-
-                    $q->orWhere(function ($sub) use ($morphAlias, $idArray) {
-                        $sub->where('model_type', $morphAlias)
-                            ->whereIn('model_id', $idArray);
-                    });
-                }
-            });
-        } else {
-            // Global logic...
-        }
-
-        // Apply Search (Case Insensitive)
-        if ($this->search) {
-            $term = strtolower($this->search);
-            $mediaQuery->where(function ($q) use ($term) {
-                $q->whereRaw('LOWER(file_name) LIKE ?', ["%{$term}%"])
-                    ->orWhereRaw('LOWER(name) LIKE ?', ["%{$term}%"]);
-            });
-        }
-
-        return $mediaQuery->get()->map(fn($m) => $this->mapMediaItem($m));
+        return view('file-manager::livewire.file-manager', [
+            'items' => $items,
+            'totalCount' => $items->count(),
+            'breadcrumbs' => $this->getBreadcrumbs(),
+        ]);
     }
 
-    protected function getItems(): \Illuminate\Support\Collection
+    protected function getItems(): Collection
     {
         // 1. Basic Safety & Setup
-        if (!$this->ownerId || !$this->ownerType) {
-            return collect();
-        }
+//        if (!$this->ownerId || !$this->ownerType) {
+//            return collect();
+//        }
 
-        $mediaModelClass = config('media-library.media_model', \Spatie\MediaLibrary\MediaCollections\Models\Media::class);
-        $owner = $this->ownerType::findOrFail($this->ownerId);
+        $mediaModelClass = config('media-library.media_model', Media::class);
+        $owner = $this->modelType::findOrFail($this->modelId);
 
         // 2. Resolve the Relationship Map for this specific Matter
-        $relConfig = config("file-manager.relationships.{$this->ownerType}");
+        $relConfig = config("file-manager.relationships.{$this->modelType}");
         $map = is_callable($relConfig)
             ? $relConfig($owner)
             : (method_exists($owner, 'getFileManagerMap') ? $owner->getFileManagerMap() : []);
 
         // --- VIEW: FOLDER (Categories like "Tasks", "Orders") ---
-        if ($this->view === 'folder') {
+        if ($this->view === 'folder' && !$this->selectedType) {
             return collect($map)->map(function ($ids, $class) use ($mediaModelClass) {
-                // Convert to array and filter out nulls/empty strings
                 $idArray = collect($ids)->filter()->toArray();
-
                 if (empty($idArray)) return null;
 
-                // Resolve Morph Alias (Handles 'App\Models\Order' vs 'order')
                 $modelInstance = new $class;
                 $morphAlias = $modelInstance->getMorphClass();
-
-                // PERFORMANCE CHECK: Only show folder if media exists for these specific IDs
                 $totalFiles = $mediaModelClass::where('model_type', $morphAlias)
                     ->whereIn('model_id', $idArray)
                     ->count();
 
-//                if (!$totalFiles) return null;
-
-                // 1. Define the translation key
                 $transKey = "file-manager::messages.models." . str(class_basename($class))->snake();
+                $displayName = Lang::has($transKey) ? __($transKey) : str(class_basename($class))->headline()->plural();
 
-                // 2. Check if the translation exists, otherwise use a formatted fallback
-                $displayName = Lang::has($transKey)
-                    ? __($transKey)
-                    : str(class_basename($class))->headline()->plural();
-
-                // This tries to find a translation for the model name, e.g., 'file-manager::models.task'
                 return [
                     'name' => $displayName,
                     'type' => $class,
@@ -452,11 +303,57 @@ class FileManager extends Component
                     'is_folder' => true,
                     'icon' => 'bi-folder-fill text-primary',
                 ];
-            })->filter()->values(); // filter() removes the nulls, values() resets the keys
+            })
+                ->filter() // First, remove nulls from empty relationships
+                ->filter(function ($folder) {
+                    if (empty($this->search)) return true;
+                    // The error happens if $folder is null here, but ->filter() above prevents that
+                    return str_contains(strtolower($folder['name']), strtolower($this->search));
+                })
+                ->sortByDesc('count')
+                ->values();
         }
 
         // --- VIEW: ITEMS (Files inside a selected category) ---
         if ($this->view === 'items' && $this->selectedType) {
+            $config = config('file-manager.models', []);
+            $settings = $config[$this->selectedType] ?? [];
+            $isFlat = $settings['flat'] ?? false;
+            $allowedIds = collect($map[$this->selectedType] ?? [])->filter()->toArray();
+
+            // If NOT flat and we haven't selected a specific record ID yet,
+            // show the list of Records (Petitioners) as folders.
+            if (!$isFlat && !$this->selectedId) {
+                $query = $this->selectedType::whereIn('id', $allowedIds);
+
+                // Only filter by media if the relationship exists to prevent Internal Server Error
+                if (method_exists($this->selectedType, 'media')) {
+                    $query->whereHas('media');
+                }
+
+                if ($this->search) {
+                    $term = strtolower($this->search);
+
+                    // If the model has a custom search method, use it
+                    if (method_exists($this->selectedType, 'search')) {
+                        $query = $this->selectedType::search($query, $term);
+                    } else {
+                        // Fallback to basic column search from config
+                        $titleCol = $settings['title_column'] ?? 'name';
+                        $query->whereRaw("LOWER({$titleCol}) LIKE ?", ["%{$term}%"]);
+                    }
+                }
+
+                return $query->get()->map(fn($record) => [
+                    'id' => $record->id,
+                    'name' => $record->getFileManagerLabel(),
+                    'type' => $this->selectedType,
+                    'is_folder' => true,
+                    'count' => method_exists($record, 'media') ? $record->media()->count() : 0,
+                    'icon' => 'bi-folder-fill text-warning',
+                ]);
+            }
+
             $mediaQuery = $mediaModelClass::query();
 
             $modelInstance = new $this->selectedType;
@@ -492,80 +389,52 @@ class FileManager extends Component
         return collect();
     }
 
-    /**
-     * Map database record to UI array.
-     */
-    protected function mapMediaItem($m): array
-    {
-        return [
-            'id' => $m->id,
-            'name' => $m->file_name,
-            'category' => str($m->collection_name)->headline(),
-            'size' => $m->human_readable_size,
-            'url' => $m->getUrl(),
-            'extension' => $m->extension,
-            'is_folder' => false,
-        ];
-    }
-
-    /**
-     * Navigation Logic.
-     */
-    public function navigate($view, $type = null, $id = null)
-    {
-        $this->view = $view;
-        $this->selectedType = $type;
-        $this->selectedId = $id; // Not strictly needed for contextual, but keep for global
-        $this->search = '';
-    }
-
-    /**
-     * Breadcrumb Generator.
-     */
     protected function getBreadcrumbs(): array
     {
         $breadcrumbs = [
             [
                 'name' => __('file-manager::messages.root_name'),
                 'view' => 'folder',
-                'active' => $this->view === 'folder', // Active if we are in folder view
+                'type' => null,
+                'id' => null,
+                'active' => $this->view === 'folder' && !$this->selectedType,
             ],
         ];
 
-        if ($this->view === 'items') {
-            // 1. Define the translation key
-            $transKey = "file-manager::messages.models." . str(class_basename($this->selectedType))->snake();
+        // Added check: Ensure selectedType isn't empty before trying to use it
+        if ($this->view === 'items' && !empty($this->selectedType)) {
+            $className = class_basename($this->selectedType);
+            $transKey = "file-manager::messages.models." . str($className)->snake();
 
-            // 2. Check if the translation exists, otherwise use a formatted fallback
             $displayName = Lang::has($transKey)
                 ? __($transKey)
-                : str(class_basename($this->selectedType))->headline()->plural();
+                : str($className)->headline()->plural();
 
             $breadcrumbs[] = [
                 'name' => $displayName,
                 'view' => 'items',
                 'type' => $this->selectedType,
-                'active' => true, // The last item in the trail is always active
+                'active' => true,
             ];
-            // If we are in items view, the root is no longer the active highlight
             $breadcrumbs[0]['active'] = false;
         }
 
+        if ($this->view !== 'root' && $this->selectedId) {
+            $record = $this->selectedType::find($this->selectedId);
+            $breadcrumbs[] = [
+                'name' => $record ? $record->getFileManagerLabel() : 'Record',
+                'view' => 'items',
+                'type' => $this->selectedType,
+                'id' => $this->selectedId,
+                'active' => true,
+            ];
+
+            // Set previous crumb to inactive
+//            $breadcrumbs[count($breadcrumbs)-2]['active'] = false;
+            $breadcrumbs[count($breadcrumbs) - 2]['active'] = false;
+        }
+
         return $breadcrumbs;
-    }
-
-    /**
-     * Render the component.
-     */
-    public function render()
-    {
-        $items = $this->getItems();
-
-        return view('file-manager::livewire.file-manager', [
-            'items' => $items,
-            'totalCount' => $items->count(),
-            'breadcrumbs' => $this->getBreadcrumbs(),
-        ]);
     }
 
     /**
@@ -581,5 +450,21 @@ class FileManager extends Component
             'zip', 'rar' => 'bi-file-zip text-info',
             default => 'bi-file-earmark-text text-gray-400',
         };
+    }
+
+    /**
+     * Map database record to UI array.
+     */
+    protected function mapMediaItem($m): array
+    {
+        return [
+            'id' => $m->id,
+            'name' => $m->file_name,
+            'category' => str($m->collection_name)->headline(),
+            'size' => $m->human_readable_size,
+            'url' => $m->getUrl(),
+            'extension' => $m->extension,
+            'is_folder' => false,
+        ];
     }
 }

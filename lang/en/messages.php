@@ -2,11 +2,8 @@
 
 return [
     'search_placeholder' => 'Search...',
-    'total' => 'Total',
     'files' => 'Files',
-    'file' => 'File',
     'folders' => 'Folders',
-    'folder' => 'Folder',
     'new' => 'New',
     'no_results_found' => 'No results found for ":search"',
     'try_checking_spelling' => 'Try checking your spelling or using more general keywords.',
@@ -16,4 +13,9 @@ return [
     'back_to_root' => 'Back to Root',
     'root_name' => 'File Manager',
     'items' => 'Items',
+    'category' => '{0} No Categories|{1} :count Category|[2,*] :count Categories',
+    'folder'   => '{0} No Folders|{1} :count Folder|[2,*] :count Folders',
+    'file'     => '{0} No Files|{1} :count File|[2,*] :count Files',
+    'record'     => '{0} Empty|{1} :count Record|[2,*] :count Records',
+    'total'    => 'Total',
 ];
