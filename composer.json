@@ -2,11 +2,6 @@
     "name": "dot-env-it/laravel-file-manager",
     "description": "Metronic 8 styled file manager for Laravel using Spatie Media Library.",
     "license": "MIT",
-    "autoload": {
-        "psr-4": {
-            "DotEnvIt\\FileManager\\": "src/"
-        }
-    },
     "authors": [
         {
             "name": "dot-env-it",
@@ -18,11 +13,34 @@
         "livewire/livewire": "^3.0 || ^4.0",
         "spatie/laravel-medialibrary": "^11.0"
     },
+    "require-dev": {
+        "dragon-code/codestyler": "^6.7"
+    },
+    "autoload": {
+        "psr-4": {
+            "DotEnvIt\\FileManager\\": "src/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "ergebnis/composer-normalize": true
+        }
+    },
     "extra": {
         "laravel": {
             "providers": [
                 "DotEnvIt\\FileManager\\FileManagerServiceProvider"
             ]
         }
+    },
+    "scripts": {
+        "post-update-cmd": [
+            "vendor/bin/codestyle pint 8.5",
+            "vendor/bin/codestyle rector laravel",
+            "vendor/bin/codestyle editorconfig",
+            "vendor/bin/codestyle npm",
+            "composer normalize"
+        ],
+        "style": "vendor/bin/rector && vendor/bin/pint --parallel"
     }
 }
