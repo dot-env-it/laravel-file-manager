@@ -84,9 +84,9 @@ final class FileManager extends Component
                 }
 
                 return [
-                    'name'      => $this->getTranslationForModel($class),
-                    'type'      => $class,
-                    'count'     => $this->getMediaModel()::where('model_type', (new $class)->getMorphClass())
+                    'name'  => $this->getTranslationForModel($class),
+                    'type'  => $class,
+                    'count' => $this->getMediaModel()::where('model_type', (new $class)->getMorphClass())
                         ->whereIn('model_id', $idArray)->count(),
                     'is_folder' => true,
                     'is_flat'   => config("file-manager.models.{$class}.flat", false),
@@ -221,10 +221,10 @@ final class FileManager extends Component
         if (! $isFlat && class_exists($this->selectedType)) {
             $modelInstance = new $this->selectedType;
             if ($modelInstance instanceof FileManagerModelInterface && $this->modelId) {
-                $foreignKey    = $modelInstance->getFileManagerForeignKey();
-                $records       = $this->selectedType::where($foreignKey, $this->modelId)->get();
-                $this->options =
-                    $records->map(fn ($item) => ['id' => $item->id, 'label' => $item->getFileManagerLabel()])->toArray(
+                $foreignKey = $modelInstance->getFileManagerForeignKey();
+                $records    = $this->selectedType::where($foreignKey, $this->modelId)->get();
+                $this->options
+                    = $records->map(fn ($item) => ['id' => $item->id, 'label' => $item->getFileManagerLabel()])->toArray(
                     );
                 if (count($this->options) === 1) {
                     $this->selectedId = $this->options[0]['id'] ?? null;
