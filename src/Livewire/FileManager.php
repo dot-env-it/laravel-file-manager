@@ -16,7 +16,7 @@ use Livewire\WithFileUploads;
 
 // Fixed: Added Log facade
 
-class FileManager extends Component
+final class FileManager extends Component
 {
     use WithFileUploads;
 
@@ -84,9 +84,9 @@ class FileManager extends Component
                 }
 
                 return [
-                    'name'  => $this->getTranslationForModel($class),
-                    'type'  => $class,
-                    'count' => $this->getMediaModel()::where('model_type', (new $class)->getMorphClass())
+                    'name'      => $this->getTranslationForModel($class),
+                    'type'      => $class,
+                    'count'     => $this->getMediaModel()::where('model_type', (new $class)->getMorphClass())
                         ->whereIn('model_id', $idArray)->count(),
                     'is_folder' => true,
                     'is_flat'   => config("file-manager.models.{$class}.flat", false),
@@ -96,7 +96,9 @@ class FileManager extends Component
             })
                 ->filter()
                 ->when($this->search, function ($collection) {
-                    return $collection->filter(fn ($item) => Str::contains($item['name'], $this->search, ignoreCase: true));
+                    return $collection->filter(
+                        fn ($item) => Str::contains($item['name'], $this->search, ignoreCase: true)
+                    );
                 })
                 ->sortByDesc('count')->values();
         }
@@ -110,7 +112,14 @@ class FileManager extends Component
             // If it's a nested model and no specific ID is chosen, show Records as folders
             if (! $isFlat && ! $this->selectedId) {
                 return $this->selectedType::whereIn('id', $allowedIds)
-                    ->when($this->search, fn ($q) => $q->where($this->getTitleColumnName($this->selectedType), 'ilike', "%{$this->search}%"))
+                    ->when(
+                        $this->search,
+                        fn ($q) => $q->where(
+                            $this->getTitleColumnName($this->selectedType),
+                            'ilike',
+                            "%{$this->search}%"
+                        )
+                    )
                     ->get()
                     ->map(fn ($record) => [
                         'id'        => $record->id,
@@ -151,7 +160,9 @@ class FileManager extends Component
                     'icon'      => 'bi-folder-fill text-primary',
                 ];
             })->when($this->search, function ($collection) {
-                return $collection->filter(fn ($item) => str_contains(strtolower($item['name']), strtolower($this->search)));
+                return $collection->filter(
+                    fn ($item) => str_contains(strtolower($item['name']), strtolower($this->search))
+                );
             });
         }
 
@@ -212,7 +223,9 @@ class FileManager extends Component
             if ($modelInstance instanceof FileManagerModelInterface && $this->modelId) {
                 $foreignKey    = $modelInstance->getFileManagerForeignKey();
                 $records       = $this->selectedType::where($foreignKey, $this->modelId)->get();
-                $this->options = $records->map(fn ($item) => ['id' => $item->id, 'label' => $item->getFileManagerLabel()])->toArray();
+                $this->options =
+                    $records->map(fn ($item) => ['id' => $item->id, 'label' => $item->getFileManagerLabel()])->toArray(
+                    );
                 if (count($this->options) === 1) {
                     $this->selectedId = $this->options[0]['id'] ?? null;
                 }
@@ -235,7 +248,9 @@ class FileManager extends Component
             'id'        => $m->id, 'name' => $m->file_name, 'is_folder' => false,
             'size'      => $m->human_readable_size, 'url' => $this->getFileUrl($m),
             'extension' => $m->extension, 'icon' => $this->getFileIcon($m->extension),
-            'custom'    => collect($m->custom_properties)->only(config('file-manager.visible_custom_properties', []))->toArray(),
+            'custom'    => collect($m->custom_properties)
+                ->only(config('file-manager.visible_custom_properties', []))
+                ->toArray(),
         ];
     }
 
@@ -259,13 +274,15 @@ class FileManager extends Component
             ? ($this->view === self::VIEW_FOLDER && ! $this->selectedType)
             : ($this->view === self::VIEW_ITEMS && $this->selectedType === 'all');
 
-        $crumbs = [[
-            'name'   => __('file-manager::messages.root_name') . ($isAtRoot ? " ($size)" : ''),
-            'view'   => $this->modelId ? self::VIEW_FOLDER : self::VIEW_ITEMS,
-            'type'   => $this->modelId ? null : 'all',
-            'id'     => null, // Key must exist to avoid PHP 8.4 errors
-            'active' => $isAtRoot,
-        ]];
+        $crumbs = [
+            [
+                'name'   => __('file-manager::messages.root_name') . ($isAtRoot ? " ($size)" : ''),
+                'view'   => $this->modelId ? self::VIEW_FOLDER : self::VIEW_ITEMS,
+                'type'   => $this->modelId ? null : 'all',
+                'id'     => null, // Key must exist to avoid PHP 8.4 errors
+                'active' => $isAtRoot,
+            ],
+        ];
 
         if ($this->selectedType && $this->selectedType !== 'all') {
             $crumbs[] = [
@@ -338,14 +355,21 @@ class FileManager extends Component
         return $media::sum('size');
     }
 
-    private function formatBytes($bytes)
+    private function formatBytes($bytes, $precision = 2)
     {
-        $units = ['B', 'KB', 'MB', 'GB'];
-        $bytes = max($bytes, 0);
-        $pow   = floor(($bytes ? log($bytes) : 0) / log(1024));
-        $pow   = min($pow, count($units) - 1);
+        // Cast to float to handle strings returned by DB queries
+        $bytes = (float) $bytes;
 
-        return round($bytes / pow(1024, $pow), 2) . ' ' . $units[$pow];
+        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        $bytes = max($bytes, 0);
+
+        // The error happens here because log() was receiving a string
+        $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
+        $pow = min($pow, count($units) - 1);
+
+        $bytes /= pow(1024, $pow);
+
+        return round($bytes, $precision) . ' ' . $units[$pow];
     }
 
     protected function getFileIcon($ext): string
@@ -380,6 +404,9 @@ class FileManager extends Component
     {
         $items = $this->getItems();
 
-        return view('file-manager::livewire.file-manager', ['items' => $items, 'totalCount' => $items->count(), 'breadcrumbs' => $this->getBreadcrumbs()]);
+        return view(
+            'file-manager::livewire.file-manager',
+            ['items' => $items, 'totalCount' => $items->count(), 'breadcrumbs' => $this->getBreadcrumbs()]
+        );
     }
 }

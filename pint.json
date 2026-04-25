@@ -4,6 +4,7 @@
         "tests/Fixtures"
     ],
     "rules": {
+        "final_class": true,
         "@PHP7x1Migration": true,
         "@PHP7x3Migration": true,
         "@PHP7x4Migration": true,

@@ -8,7 +8,7 @@ use DotEnvIt\FileManager\Livewire\FileManager;
 use Illuminate\Support\ServiceProvider;
 use Livewire\Livewire;
 
-class FileManagerServiceProvider extends ServiceProvider
+final class FileManagerServiceProvider extends ServiceProvider
 {
     /** Register any application services. */
     public function register(): void
