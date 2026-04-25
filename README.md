@@ -134,7 +134,7 @@ This section defines the "Tier 1" folders.
 
 ### 2\. Contextual Grouping (`relationships`)
 
-The "Deep Vault" logic. When viewing a parent model (like a **Company**), this closure defines which child models to pull files from.
+The "Deep Vault" logic. When viewing a parent model (like a **Company**), this closure defines which child models to pull files from when `getFileManagerMap` function is not defined in Parent model.
 
 ```php
 'relationships' => [
