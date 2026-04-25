@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace DotEnvIt\FileManager;
 
 use DotEnvIt\FileManager\Livewire\FileManager;
@@ -8,9 +10,7 @@ use Livewire\Livewire;
 
 class FileManagerServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
+    /** Register any application services. */
     public function register(): void
     {
         // Merge the config file so the app can use config('file-manager')
@@ -20,9 +20,7 @@ class FileManagerServiceProvider extends ServiceProvider
         );
     }
 
-    /**
-     * Bootstrap any application services.
-     */
+    /** Bootstrap any application services. */
     public function boot(): void
     {
         // 1. Load Views with a namespace: file-manager::view-name

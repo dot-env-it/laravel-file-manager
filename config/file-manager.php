@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use App\Models\Certification;
 use App\Models\User;
 
@@ -28,12 +30,12 @@ return [
          * ],
          */
         User::class => [
-            'label' => 'Staff Directory', // Label in the UI
+            'label'        => 'Staff Directory', // Label in the UI
             'title_column' => 'relation.name',           // Column to use for folder name and for search you can use relations also.
-            'icon' => 'bi-people-fill text-info',
-            'flat' => false,            // False = show files group by user names, True= Show all user files combined
-            'filters' => [
-                'collections' => ['avatars', 'documents', 'contracts'],
+            'icon'         => 'bi-people-fill text-info',
+            'flat'         => false,            // False = show files group by user names, True= Show all user files combined
+            'filters'      => [
+                'collections'       => ['avatars', 'documents', 'contracts'],
                 'custom_properties' => [
                     // 'is_hidden' => false, // Only show if 'is_hidden' in custom_properties in media table is false
                 ],
@@ -49,19 +51,19 @@ return [
     | a 'model' to the component.
     */
     'relationships' => [
-        /**
-         * USER MODEL EXAMPLE
-         * When viewing a specific User, show their files AND files belonging to their related models.
-         * Example:
-         * ModelNamespace => function($model) {
-         * return [
-         *      MainModelNamespace         => [$model->id],
-         *      Relation1ModelNamespace    => $model->relation1()->pluck('id'),
-         *      Relation2DModelNamespace   => $model->relation2()->pluck('id'),
-         *      Relation3ModelNamespace    => $model->relation3()->pluck('id'),
-         * ];
-         * },
-         */
+    /**
+     * USER MODEL EXAMPLE
+     * When viewing a specific User, show their files AND files belonging to their related models.
+     * Example:
+     * ModelNamespace => function($model) {
+     * return [
+     *      MainModelNamespace         => [$model->id],
+     *      Relation1ModelNamespace    => $model->relation1()->pluck('id'),
+     *      Relation2DModelNamespace   => $model->relation2()->pluck('id'),
+     *      Relation3ModelNamespace    => $model->relation3()->pluck('id'),
+     * ];
+     * },
+     */
         /*
          \App\Models\User::class => function ($user) {
             return [
@@ -84,14 +86,14 @@ return [
     'forms' => [
         User::class => [
             'fields' => [
-                'name' => ['label' => 'Name', 'type' => 'text', 'class' => 'col-md-6'],
-                'description' => ['label' => 'Description', 'type' => 'textarea', 'class' => 'col-md-6'],
+                'name'          => ['label' => 'Name', 'type' => 'text', 'class' => 'col-md-6'],
+                'description'   => ['label' => 'Description', 'type' => 'textarea', 'class' => 'col-md-6'],
                 'document_date' => ['label' => 'Date of Issue', 'type' => 'date', 'class' => 'col-md-6'],
                 'document_type' => [
-                    'label' => 'Type of Document',
-                    'type' => 'select',
+                    'label'   => 'Type of Document',
+                    'type'    => 'select',
                     'options' => [
-                        'id_proof' => 'ID Proof',
+                        'id_proof'      => 'ID Proof',
                         'address_proof' => 'Address Proof',
                     ],
                     'class' => 'col-md-6',
@@ -106,14 +108,13 @@ return [
         ],
     ],
 
-
     /*
      |--------------------------------------------------------------------------
      | Custom Properties configuration
      |--------------------------------------------------------------------------
      | If you want to show custom properties along with file name which is stored in media table
      */
-    'visible_custom_properties' => ['remark',],
+    'visible_custom_properties' => ['remark'],
 
     /*
      |--------------------------------------------------------------------------

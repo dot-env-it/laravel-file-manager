@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace DotEnvIt\FileManager\Interfaces;
 
 interface FileManagerModelInterface

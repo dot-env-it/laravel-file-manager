@@ -1,8 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace DotEnvIt\FileManager\Livewire;
 
 use DotEnvIt\FileManager\Interfaces\FileManagerModelInterface;
+use Exception;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Lang;
 use Illuminate\Support\Facades\Log;
@@ -18,37 +21,45 @@ class FileManager extends Component
     use WithFileUploads;
 
     // View Constants
-    const VIEW_ROOT = 'root';
-    const VIEW_FOLDER = 'folder';
-    const VIEW_ITEMS = 'items';
-    const VIEW_MODEL_GROUP = 'model_group';
-    const VIEW_COLLECTION_GROUP = 'collection_group';
+    public const VIEW_ROOT             = 'root';
+    public const VIEW_FOLDER           = 'folder';
+    public const VIEW_ITEMS            = 'items';
+    public const VIEW_MODEL_GROUP      = 'model_group';
+    public const VIEW_COLLECTION_GROUP = 'collection_group';
 
     // State properties
     public $view = self::VIEW_ROOT;
+
     public $selectedType = null;
+
     public $selectedId = null;
+
     public $search = '';
 
     // Contextual properties (e.g. Matter)
     public $modelId = null;
+
     public $modelType = null;
 
     // Form/Upload properties
     public $isCreating = false;
+
     public $options = [];
+
     public $formData = [];
+
     public $customProperty = [];
+
     public $upload;
 
     public function mount($model = null)
     {
         if ($model) {
-            $this->modelId = $model->id;
+            $this->modelId   = $model->id;
             $this->modelType = get_class($model);
-            $this->view = self::VIEW_FOLDER;
+            $this->view      = self::VIEW_FOLDER;
         } else {
-            $this->view = self::VIEW_ITEMS;
+            $this->view         = self::VIEW_ITEMS;
             $this->selectedType = 'all';
         }
     }
@@ -60,62 +71,64 @@ class FileManager extends Component
 
     protected function getModelItems(): Collection
     {
-        $owner = $this->modelType::findOrFail($this->modelId);
+        $owner     = $this->modelType::findOrFail($this->modelId);
         $relConfig = config("file-manager.relationships.{$this->modelType}");
-        $map = is_callable($relConfig) ? $relConfig($owner) : ($owner->getFileManagerMap() ?? []);
+        $map       = is_callable($relConfig) ? $relConfig($owner) : ($owner->getFileManagerMap() ?? []);
 
         // TIER 1: Relationship Categories (Folders)
-        if ($this->view === self::VIEW_FOLDER && !$this->selectedType) {
+        if ($this->view === self::VIEW_FOLDER && ! $this->selectedType) {
             return collect($map)->map(function ($ids, $class) {
                 $idArray = collect($ids)->filter()->toArray();
-                if (empty($idArray)) return null;
+                if (empty($idArray)) {
+                    return null;
+                }
 
                 return [
-                    'name' => $this->getTranslationForModel($class),
-                    'type' => $class,
+                    'name'  => $this->getTranslationForModel($class),
+                    'type'  => $class,
                     'count' => $this->getMediaModel()::where('model_type', (new $class)->getMorphClass())
                         ->whereIn('model_id', $idArray)->count(),
                     'is_folder' => true,
-                    'is_flat' => config("file-manager.models.{$class}.flat", false),
-                    'view' => self::VIEW_ITEMS,
-                    'icon' => 'bi-folder-fill text-primary',
+                    'is_flat'   => config("file-manager.models.{$class}.flat", false),
+                    'view'      => self::VIEW_ITEMS,
+                    'icon'      => 'bi-folder-fill text-primary',
                 ];
             })
                 ->filter()
                 ->when($this->search, function ($collection) {
-                    return $collection->filter(fn($item) => Str::contains($item['name'], $this->search, ignoreCase: true));
+                    return $collection->filter(fn ($item) => Str::contains($item['name'], $this->search, ignoreCase: true));
                 })
                 ->sortByDesc('count')->values();
         }
 
         // TIER 2: Drill-down to Records or Files
         if ($this->selectedType) {
-            $settings = config("file-manager.models.{$this->selectedType}", []);
-            $isFlat = $settings['flat'] ?? false;
+            $settings   = config("file-manager.models.{$this->selectedType}", []);
+            $isFlat     = $settings['flat'] ?? false;
             $allowedIds = collect($map[$this->selectedType] ?? [])->filter()->toArray();
 
             // If it's a nested model and no specific ID is chosen, show Records as folders
-            if (!$isFlat && !$this->selectedId) {
+            if (! $isFlat && ! $this->selectedId) {
                 return $this->selectedType::whereIn('id', $allowedIds)
-                    ->when($this->search, fn($q) => $q->where($this->getTitleColumnName($this->selectedType), 'ilike', "%{$this->search}%"))
+                    ->when($this->search, fn ($q) => $q->where($this->getTitleColumnName($this->selectedType), 'ilike', "%{$this->search}%"))
                     ->get()
-                    ->map(fn($record) => [
-                        'id' => $record->id,
-                        'name' => $record->getFileManagerLabel(),
-                        'type' => $this->selectedType,
+                    ->map(fn ($record) => [
+                        'id'        => $record->id,
+                        'name'      => $record->getFileManagerLabel(),
+                        'type'      => $this->selectedType,
                         'is_folder' => true,
-                        'view' => self::VIEW_ITEMS,
-                        'count' => method_exists($record, 'media') ? $record->media()->count() : 0,
-                        'icon' => 'bi-folder-fill text-warning',
+                        'view'      => self::VIEW_ITEMS,
+                        'count'     => method_exists($record, 'media') ? $record->media()->count() : 0,
+                        'icon'      => 'bi-folder-fill text-warning',
                     ]);
             }
 
             // Show Files
             return $this->getMediaModel()::where('model_type', (new $this->selectedType)->getMorphClass())
                 ->whereIn('model_id', $allowedIds)
-                ->when($this->search, fn($q) => $q->where('file_name', 'ilike', "%{$this->search}%"))
+                ->when($this->search, fn ($q) => $q->where('file_name', 'ilike', "%{$this->search}%"))
                 ->get()
-                ->map(fn($m) => $this->formatMediaItem($m));
+                ->map(fn ($m) => $this->formatMediaItem($m));
         }
 
         return collect();
@@ -128,24 +141,25 @@ class FileManager extends Component
         if ($this->view === self::VIEW_ITEMS && $this->selectedType === 'all') {
             return $media::select('model_type')->distinct()->get()->map(function ($m) {
                 $count = $this->getMediaModel()::where('model_type', $m->model_type)->count();
+
                 return [
-                    'name' => $this->getTranslationForModel($m->model_type),
+                    'name'      => $this->getTranslationForModel($m->model_type),
                     'is_folder' => true,
-                    'view' => self::VIEW_MODEL_GROUP,
-                    'type' => $m->model_type,
-                    'count' => $count,
-                    'icon' => 'bi-folder-fill text-primary',
+                    'view'      => self::VIEW_MODEL_GROUP,
+                    'type'      => $m->model_type,
+                    'count'     => $count,
+                    'icon'      => 'bi-folder-fill text-primary',
                 ];
             })->when($this->search, function ($collection) {
-                return $collection->filter(fn($item) => str_contains(strtolower($item['name']), strtolower($this->search)));
+                return $collection->filter(fn ($item) => str_contains(strtolower($item['name']), strtolower($this->search)));
             });
         }
 
         if ($this->view === self::VIEW_MODEL_GROUP) {
             return $media::where('model_type', $this->selectedType)
-                ->when($this->search, fn($q) => $q->where('file_name', 'like', "%{$this->search}%"))
+                ->when($this->search, fn ($q) => $q->where('file_name', 'like', "%{$this->search}%"))
                 ->get()
-                ->map(fn($m) => $this->formatMediaItem($m));
+                ->map(fn ($m) => $this->formatMediaItem($m));
         }
 
         return collect();
@@ -156,14 +170,14 @@ class FileManager extends Component
         $isFlat = config("file-manager.models.{$this->selectedType}.flat", false);
 
         $this->validate([
-            'upload' => 'required|file|max:' . (config('file-manager.max_file_size', 10240)),
-            'selectedId' => (!$isFlat && $this->options) ? 'required' : 'nullable',
+            'upload'     => 'required|file|max:' . (config('file-manager.max_file_size', 10240)),
+            'selectedId' => (! $isFlat && $this->options) ? 'required' : 'nullable',
         ]);
 
         try {
             if ($isFlat) {
-                $targetModel = new $this->selectedType();
-                $foreignKey = $targetModel->getFileManagerForeignKey();
+                $targetModel              = new $this->selectedType;
+                $foreignKey               = $targetModel->getFileManagerForeignKey();
                 $targetModel->$foreignKey = $this->modelId;
                 foreach ($this->formData as $key => $val) {
                     $targetModel->$key = $val;
@@ -181,8 +195,8 @@ class FileManager extends Component
             $this->isCreating = false;
             $this->reset(['formData', 'customProperty', 'upload']);
             session()->flash('success', 'File uploaded successfully.');
-        } catch (\Exception $e) {
-            Log::error("File Manager Upload Error: " . $e->getMessage());
+        } catch (Exception $e) {
+            Log::error('File Manager Upload Error: ' . $e->getMessage());
             session()->flash('error', 'Could not save: ' . $e->getMessage());
         }
     }
@@ -193,33 +207,35 @@ class FileManager extends Component
         $this->reset(['formData', 'customProperty', 'upload', 'options']);
         $isFlat = config("file-manager.models.{$this->selectedType}.flat", false);
 
-        if (!$isFlat && class_exists($this->selectedType)) {
+        if (! $isFlat && class_exists($this->selectedType)) {
             $modelInstance = new $this->selectedType;
             if ($modelInstance instanceof FileManagerModelInterface && $this->modelId) {
-                $foreignKey = $modelInstance->getFileManagerForeignKey();
-                $records = $this->selectedType::where($foreignKey, $this->modelId)->get();
-                $this->options = $records->map(fn($item) => ['id' => $item->id, 'label' => $item->getFileManagerLabel()])->toArray();
-                if (count($this->options) === 1) $this->selectedId = $this->options[0]['id'] ?? null;
+                $foreignKey    = $modelInstance->getFileManagerForeignKey();
+                $records       = $this->selectedType::where($foreignKey, $this->modelId)->get();
+                $this->options = $records->map(fn ($item) => ['id' => $item->id, 'label' => $item->getFileManagerLabel()])->toArray();
+                if (count($this->options) === 1) {
+                    $this->selectedId = $this->options[0]['id'] ?? null;
+                }
             }
         }
     }
 
     public function navigate($view, $type = '', $id = '')
     {
-        $this->view = $view;
+        $this->view         = $view;
         $this->selectedType = $type;
-        $this->selectedId = $id;
-        $this->isCreating = false;
+        $this->selectedId   = $id;
+        $this->isCreating   = false;
         $this->reset('search');
     }
 
     protected function formatMediaItem($m): array
     {
         return [
-            'id' => $m->id, 'name' => $m->file_name, 'is_folder' => false,
-            'size' => $m->human_readable_size, 'url' => $this->getFileUrl($m),
+            'id'        => $m->id, 'name' => $m->file_name, 'is_folder' => false,
+            'size'      => $m->human_readable_size, 'url' => $this->getFileUrl($m),
             'extension' => $m->extension, 'icon' => $this->getFileIcon($m->extension),
-            'custom' => collect($m->custom_properties)->only(config('file-manager.visible_custom_properties', []))->toArray(),
+            'custom'    => collect($m->custom_properties)->only(config('file-manager.visible_custom_properties', []))->toArray(),
         ];
     }
 
@@ -230,6 +246,7 @@ class FileManager extends Component
             return $media->getTemporaryUrl(now()->addMinutes(20));
         }
         $route = config('file-manager.download_route', 'file-manager.download');
+
         return ($disk !== 'public' && Route::has($route)) ? route($route, ['media' => $media->uuid]) : $media->getUrl();
     }
 
@@ -239,24 +256,24 @@ class FileManager extends Component
 
         // Check if we are at the very beginning of the navigation
         $isAtRoot = $this->modelId
-            ? ($this->view === self::VIEW_FOLDER && !$this->selectedType)
+            ? ($this->view === self::VIEW_FOLDER && ! $this->selectedType)
             : ($this->view === self::VIEW_ITEMS && $this->selectedType === 'all');
 
         $crumbs = [[
-            'name' => __('file-manager::messages.root_name') . ($isAtRoot ? " ($size)" : ""),
-            'view' => $this->modelId ? self::VIEW_FOLDER : self::VIEW_ITEMS,
-            'type' => $this->modelId ? null : 'all',
-            'id' => null, // Key must exist to avoid PHP 8.4 errors
+            'name'   => __('file-manager::messages.root_name') . ($isAtRoot ? " ($size)" : ''),
+            'view'   => $this->modelId ? self::VIEW_FOLDER : self::VIEW_ITEMS,
+            'type'   => $this->modelId ? null : 'all',
+            'id'     => null, // Key must exist to avoid PHP 8.4 errors
             'active' => $isAtRoot,
         ]];
 
         if ($this->selectedType && $this->selectedType !== 'all') {
             $crumbs[] = [
-                'name' => $this->getTranslationForModel($this->selectedType) . " ($size)",
-                'view' => $this->modelId ? self::VIEW_ITEMS : self::VIEW_MODEL_GROUP,
-                'type' => $this->selectedType,
-                'id' => null, // Ensure consistency
-                'active' => !$this->selectedId,
+                'name'   => $this->getTranslationForModel($this->selectedType) . " ($size)",
+                'view'   => $this->modelId ? self::VIEW_ITEMS : self::VIEW_MODEL_GROUP,
+                'type'   => $this->selectedType,
+                'id'     => null, // Ensure consistency
+                'active' => ! $this->selectedId,
             ];
         }
 
@@ -266,10 +283,10 @@ class FileManager extends Component
                 : str($this->selectedId)->headline();
 
             $crumbs[] = [
-                'name' => $name . " ($size)",
-                'view' => $this->view,
-                'type' => $this->selectedType,
-                'id' => $this->selectedId,
+                'name'   => $name . " ($size)",
+                'view'   => $this->view,
+                'type'   => $this->selectedType,
+                'id'     => $this->selectedId,
                 'active' => true,
             ];
         }
@@ -283,9 +300,9 @@ class FileManager extends Component
 
         // If we are looking at a specific folder/type (e.g., Petitioner)
         if ($this->selectedType && $this->selectedType !== 'all') {
-            $owner = $this->modelType::find($this->modelId);
+            $owner     = $this->modelType::find($this->modelId);
             $relConfig = config("file-manager.relationships.{$this->modelType}");
-            $map = is_callable($relConfig) ? $relConfig($owner) : ($owner->getFileManagerMap() ?? []);
+            $map       = is_callable($relConfig) ? $relConfig($owner) : ($owner->getFileManagerMap() ?? []);
 
             $allowedIds = collect($map[$this->selectedType] ?? [])->filter()->toArray();
 
@@ -304,9 +321,9 @@ class FileManager extends Component
 
         // Default: Total size of everything in this Matter
         if ($this->modelId) {
-            $owner = $this->modelType::find($this->modelId);
+            $owner     = $this->modelType::find($this->modelId);
             $relConfig = config("file-manager.relationships.{$this->modelType}");
-            $map = is_callable($relConfig) ? $relConfig($owner) : ($owner->getFileManagerMap() ?? []);
+            $map       = is_callable($relConfig) ? $relConfig($owner) : ($owner->getFileManagerMap() ?? []);
 
             $total = 0;
             foreach ($map as $class => $ids) {
@@ -314,6 +331,7 @@ class FileManager extends Component
                     ->whereIn('model_id', collect($ids)->toArray())
                     ->sum('size');
             }
+
             return $total;
         }
 
@@ -324,25 +342,27 @@ class FileManager extends Component
     {
         $units = ['B', 'KB', 'MB', 'GB'];
         $bytes = max($bytes, 0);
-        $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
-        $pow = min($pow, count($units) - 1);
+        $pow   = floor(($bytes ? log($bytes) : 0) / log(1024));
+        $pow   = min($pow, count($units) - 1);
+
         return round($bytes / pow(1024, $pow), 2) . ' ' . $units[$pow];
     }
 
     protected function getFileIcon($ext): string
     {
         return match (strtolower($ext)) {
-            'pdf' => 'bi-file-pdf text-danger',
-            'doc', 'docx' => 'bi-file-word text-primary',
-            'xls', 'xlsx' => 'bi-file-excel text-success',
+            'pdf'                => 'bi-file-pdf text-danger',
+            'doc', 'docx'        => 'bi-file-word text-primary',
+            'xls', 'xlsx'        => 'bi-file-excel text-success',
             'png', 'jpg', 'jpeg' => 'bi-file-image text-warning',
-            default => 'bi-file-earmark-text text-gray-400',
+            default              => 'bi-file-earmark-text text-gray-400',
         };
     }
 
     protected function getTranslationForModel($class): string
     {
-        $key = "file-manager::messages.models." . Str::snake(class_basename($class));
+        $key = 'file-manager::messages.models.' . Str::snake(class_basename($class));
+
         return Lang::has($key) ? __($key) : Str::headline(class_basename($class));
     }
 
@@ -359,6 +379,7 @@ class FileManager extends Component
     public function render()
     {
         $items = $this->getItems();
+
         return view('file-manager::livewire.file-manager', ['items' => $items, 'totalCount' => $items->count(), 'breadcrumbs' => $this->getBreadcrumbs()]);
     }
 }
