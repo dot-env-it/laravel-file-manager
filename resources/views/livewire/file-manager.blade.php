@@ -3,16 +3,16 @@
         <div class="card-title">
             <div class="d-flex align-items-center position-relative my-1 me-2"
                  x-data="{
-        tempSearch: @entangle('search').live,
-        actualInput: '',
-        handleInput(e) {
-            this.actualInput = e.target.value;
-            // Sync with Livewire only at 0 or 3+ characters
-            if (this.actualInput.length >= 3 || this.actualInput.length === 0) {
-                this.tempSearch = this.actualInput;
-            }
-        }
-     }">
+                    tempSearch: @entangle('search').live,
+                    actualInput: '',
+                    handleInput(e) {
+                        this.actualInput = e.target.value;
+                        // Sync with Livewire only at 0 or 3+ characters
+                        if (this.actualInput.length >= 3 || this.actualInput.length === 0) {
+                            this.tempSearch = this.actualInput;
+                        }
+                    }
+                 }">
 
                 <i class="bi bi-search position-absolute ms-6"></i>
 
@@ -23,9 +23,9 @@
                        :value="actualInput"/>
 
                 <template x-if="actualInput.length > 0 && actualInput.length < 3">
-        <span class="position-absolute end-0 me-4 badge badge-light-primary fs-9 animate__animated animate__fadeIn">
-            Type <span x-text="3 - actualInput.length"></span> more...
-        </span>
+                    <span class="position-absolute end-0 me-4 badge badge-light-primary fs-9 animate__animated animate__fadeIn">
+                        Type <span x-text="3 - actualInput.length"></span> more...
+                    </span>
                 </template>
 
                 <div wire:loading wire:target="search"

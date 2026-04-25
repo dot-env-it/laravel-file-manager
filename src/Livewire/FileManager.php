@@ -83,7 +83,7 @@ class FileManager extends Component
             })
                 ->filter()
                 ->when($this->search, function ($collection) {
-                    return $collection->filter(fn($item) => str_contains(strtolower($item['name']), strtolower($this->search)));
+                    return $collection->filter(fn($item) => Str::contains($item['name'], $this->search, ignoreCase: true));
                 })
                 ->sortByDesc('count')->values();
         }
@@ -97,7 +97,7 @@ class FileManager extends Component
             // If it's a nested model and no specific ID is chosen, show Records as folders
             if (!$isFlat && !$this->selectedId) {
                 return $this->selectedType::whereIn('id', $allowedIds)
-                    ->when($this->search, fn($q) => $q->where('name', 'like', "%{$this->search}%"))
+                    ->when($this->search, fn($q) => $q->where($this->getTitleColumnName($this->selectedType), 'ilike', "%{$this->search}%"))
                     ->get()
                     ->map(fn($record) => [
                         'id' => $record->id,
@@ -113,7 +113,7 @@ class FileManager extends Component
             // Show Files
             return $this->getMediaModel()::where('model_type', (new $this->selectedType)->getMorphClass())
                 ->whereIn('model_id', $allowedIds)
-                ->when($this->search, fn($q) => $q->where('file_name', 'like', "%{$this->search}%"))
+                ->when($this->search, fn($q) => $q->where('file_name', 'ilike', "%{$this->search}%"))
                 ->get()
                 ->map(fn($m) => $this->formatMediaItem($m));
         }
@@ -161,7 +161,6 @@ class FileManager extends Component
         ]);
 
         try {
-            $targetModel = null;
             if ($isFlat) {
                 $targetModel = new $this->selectedType();
                 $foreignKey = $targetModel->getFileManagerForeignKey();
@@ -253,7 +252,7 @@ class FileManager extends Component
 
         if ($this->selectedType && $this->selectedType !== 'all') {
             $crumbs[] = [
-                'name' => $this->getTranslationForModel($this->selectedType),
+                'name' => $this->getTranslationForModel($this->selectedType) . " ($size)",
                 'view' => $this->modelId ? self::VIEW_ITEMS : self::VIEW_MODEL_GROUP,
                 'type' => $this->selectedType,
                 'id' => null, // Ensure consistency
@@ -281,16 +280,43 @@ class FileManager extends Component
     protected function getCurrentStateSize()
     {
         $media = $this->getMediaModel();
+
+        // If we are looking at a specific folder/type (e.g., Petitioner)
+        if ($this->selectedType && $this->selectedType !== 'all') {
+            $owner = $this->modelType::find($this->modelId);
+            $relConfig = config("file-manager.relationships.{$this->modelType}");
+            $map = is_callable($relConfig) ? $relConfig($owner) : ($owner->getFileManagerMap() ?? []);
+
+            $allowedIds = collect($map[$this->selectedType] ?? [])->filter()->toArray();
+
+            // If we have a specific record (e.g., TVS Credit Services Ltd)
+            if ($this->selectedId) {
+                return $media::where('model_type', (new $this->selectedType)->getMorphClass())
+                    ->where('model_id', $this->selectedId)
+                    ->sum('size');
+            }
+
+            // Inside getModelItems() -> Tier 2 logic
+            return $media::where('model_type', (new $this->selectedType)->getMorphClass())
+                ->whereIn('model_id', $allowedIds)
+                ->sum('size');
+        }
+
+        // Default: Total size of everything in this Matter
         if ($this->modelId) {
             $owner = $this->modelType::find($this->modelId);
             $relConfig = config("file-manager.relationships.{$this->modelType}");
             $map = is_callable($relConfig) ? $relConfig($owner) : ($owner->getFileManagerMap() ?? []);
+
             $total = 0;
             foreach ($map as $class => $ids) {
-                $total += $media::where('model_type', (new $class)->getMorphClass())->whereIn('model_id', collect($ids)->toArray())->sum('size');
+                $total += $media::where('model_type', (new $class)->getMorphClass())
+                    ->whereIn('model_id', collect($ids)->toArray())
+                    ->sum('size');
             }
             return $total;
         }
+
         return $media::sum('size');
     }
 
@@ -323,6 +349,11 @@ class FileManager extends Component
     protected function getMediaModel()
     {
         return config('media-library.media_model');
+    }
+
+    protected function getTitleColumnName($modelType)
+    {
+        return config("file-manager.models.{$modelType}.title_column");
     }
 
     public function render()

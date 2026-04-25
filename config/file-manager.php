@@ -29,7 +29,7 @@ return [
          */
         User::class => [
             'label' => 'Staff Directory', // Label in the UI
-            'title_column' => 'relation.name',           // Column to use for folder name you can use relations also.
+            'title_column' => 'relation.name',           // Column to use for folder name and for search you can use relations also.
             'icon' => 'bi-people-fill text-info',
             'flat' => false,            // False = show files group by user names, True= Show all user files combined
             'filters' => [
