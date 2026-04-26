@@ -1,5 +1,10 @@
 # Laravel File Manager
 
+<picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://banners.beyondco.de/Laravel%20File%20Manager.png?pattern=topography&style=style_2&fontSize=100px&md=1&showWatermark=1&theme=dark&packageManager=composer+require&packageName=dot-env-it%2Flaravel-file-manager&description=Metronic+8+styled+file+manager+for+Laravel+using+Spatie+Media+Library.&images=https%3A%2F%2Fwww.php.net%2Fimages%2Flogos%2Fnew-php-logo.svg">
+    <img src="https://banners.beyondco.de/Laravel%20File%20Manager.png?pattern=topography&style=style_2&fontSize=100px&md=1&showWatermark=1&theme=light&packageManager=composer+require&packageName=dot-env-it%2Flaravel-file-manager&description=Metronic+8+styled+file+manager+for+Laravel+using+Spatie+Media+Library.&images=https%3A%2F%2Fwww.php.net%2Fimages%2Flogos%2Fnew-php-logo.svg" alt="Laravel File Manager">
+</picture>
+
 A professional Livewire-powered file management system for Laravel. Organize media into logical tiers and manage complex file relationships with ease.
 
 ## 🖼️ Preview
