@@ -4,8 +4,12 @@
     "license": "MIT",
     "authors": [
         {
-            "name": "dot-env-it",
-            "email": "jagdish.j.ptl@gmail.com"
+            "name": "Dot-Env-IT",
+            "email": "dotenvit@gmail.com"
+        },
+        {
+            "name": "Jagdish Patel",
+            "email": "jagdish.j.ptl@gmail.com.com"
         }
     ],
     "require": {
