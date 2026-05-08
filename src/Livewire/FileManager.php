@@ -84,9 +84,9 @@ final class FileManager extends Component
                 }
 
                 return [
-                    'name'  => $this->getTranslationForModel($class),
-                    'type'  => $class,
-                    'count' => $this->getMediaModel()::where('model_type', (new $class)->getMorphClass())
+                    'name'      => $this->getTranslationForModel($class),
+                    'type'      => $class,
+                    'count'     => $this->getMediaModel()::where('model_type', (new $class)->getMorphClass())
                         ->whereIn('model_id', $idArray)->count(),
                     'is_folder' => true,
                     'is_flat'   => config("file-manager.models.{$class}.flat", false),
@@ -224,7 +224,8 @@ final class FileManager extends Component
                 $foreignKey = $modelInstance->getFileManagerForeignKey();
                 $records    = $this->selectedType::where($foreignKey, $this->modelId)->get();
                 $this->options
-                    = $records->map(fn ($item) => ['id' => $item->id, 'label' => $item->getFileManagerLabel()])->toArray(
+                            =
+                    $records->map(fn ($item) => ['id' => $item->id, 'label' => $item->getFileManagerLabel()])->toArray(
                     );
                 if (count($this->options) === 1) {
                     $this->selectedId = $this->options[0]['id'] ?? null;
@@ -286,7 +287,8 @@ final class FileManager extends Component
 
         if ($this->selectedType && $this->selectedType !== 'all') {
             $crumbs[] = [
-                'name'   => $this->getTranslationForModel($this->selectedType) . ($this->selectedId ? " ($size)" : ''),
+                'name'   => $this->getTranslationForModel($this->selectedType) . (! $this->selectedId ? " ($size)"
+                        : ''),
                 'view'   => $this->modelId ? self::VIEW_ITEMS : self::VIEW_MODEL_GROUP,
                 'type'   => $this->selectedType,
                 'id'     => null, // Ensure consistency
