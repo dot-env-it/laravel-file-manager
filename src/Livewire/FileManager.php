@@ -134,7 +134,7 @@ final class FileManager extends Component
 
             // Show Files
             return $this->getMediaModel()::where('model_type', (new $this->selectedType)->getMorphClass())
-                ->whereIn('model_id', $allowedIds)
+                ->whereIn('model_id', $this->selectedId ? [$this->selectedId] : $allowedIds)
                 ->when($this->search, fn ($q) => $q->where('file_name', 'ilike', "%{$this->search}%"))
                 ->get()
                 ->map(fn ($m) => $this->formatMediaItem($m));
