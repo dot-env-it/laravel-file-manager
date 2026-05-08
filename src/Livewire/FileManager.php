@@ -286,7 +286,7 @@ final class FileManager extends Component
 
         if ($this->selectedType && $this->selectedType !== 'all') {
             $crumbs[] = [
-                'name'   => $this->getTranslationForModel($this->selectedType) . " ($size)",
+                'name'   => $this->getTranslationForModel($this->selectedType) . ($this->selectedId ? " ($size)" : ''),
                 'view'   => $this->modelId ? self::VIEW_ITEMS : self::VIEW_MODEL_GROUP,
                 'type'   => $this->selectedType,
                 'id'     => null, // Ensure consistency
