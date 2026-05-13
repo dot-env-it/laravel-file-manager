@@ -6,9 +6,9 @@
 
 
 
-[![Latest Stable Version](https://img.shields.io/packagist/v/dot-env-it/laravel-calendar.svg?style=flat-square)](https://packagist.org/packages/dot-env-it/laravel-calendar)
-[![Total Downloads](https://img.shields.io/packagist/dt/dot-env-it/laravel-calendar.svg?style=flat-square)](https://packagist.org/packages/dot-env-it/laravel-calendar)
-[![License](https://img.shields.io/packagist/l/dot-env-it/laravel-calendar.svg?style=flat-square)](https://packagist.org/packages/dot-env-it/laravel-calendar)
+[![Latest Stable Version](https://img.shields.io/packagist/v/dot-env-it/laravel-file-manager.svg?style=flat-square)](https://packagist.org/packages/dot-env-it/laravel-file-manager)
+[![Total Downloads](https://img.shields.io/packagist/dt/dot-env-it/laravel-file-manager.svg?style=flat-square)](https://packagist.org/packages/dot-env-it/laravel-file-manager)
+[![License](https://img.shields.io/packagist/l/dot-env-it/laravel-file-manager.svg?style=flat-square)](https://packagist.org/packages/dot-env-it/laravel-file-manager)
 
 
 A professional Livewire-powered file management system for Laravel. Organize media into logical tiers and manage complex file relationships with ease.
